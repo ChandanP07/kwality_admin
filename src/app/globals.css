@@ -1,0 +1,171 @@
+@import "tailwindcss";
+
+/* ── Tailwind v4: class-based dark mode ── */
+@variant dark (&:where(.dark, .dark *));
+
+/* ══════════════════════════════════════════
+   LIGHT MODE
+══════════════════════════════════════════ */
+:root {
+  --background:           #f1f5f9;
+  --foreground:           #0f172a;
+  --card:                 #ffffff;
+  --card-border:          #e2e8f0;
+  --card-foreground:      #0f172a;
+  --sidebar-bg:           #ffffff;
+  --sidebar-border:       #e2e8f0;
+  --sidebar-text:         #374151;
+  --sidebar-text-active:  #1e1b4b;
+  --sidebar-active-bg:    #eef2ff;
+  --topbar-bg:            #ffffff;
+  --topbar-border:        #e2e8f0;
+  --text-primary:         #0f172a;
+  --text-secondary:       #374151;
+  --text-muted:           #6b7280;
+  --text-disabled:        #9ca3af;
+  --input-bg:             #ffffff;
+  --input-border:         #d1d5db;
+  --input-text:           #111827;
+  --input-placeholder:    #9ca3af;
+  --muted-bg:             #f8fafc;
+  --divider:              #e5e7eb;
+  --ring:                 #6366f1;
+  --table-header-bg:      #f9fafb;
+  --table-row-hover:      #f9fafb;
+  --table-border:         #e5e7eb;
+  --badge-blue-bg:        #dbeafe;
+  --badge-blue-text:      #1e40af;
+  --badge-green-bg:       #dcfce7;
+  --badge-green-text:     #166534;
+  --badge-red-bg:         #fee2e2;
+  --badge-red-text:       #991b1b;
+  --badge-yellow-bg:      #fef9c3;
+  --badge-yellow-text:    #854d0e;
+  --badge-gray-bg:        #f3f4f6;
+  --badge-gray-text:      #374151;
+}
+
+/* ══════════════════════════════════════════
+   DARK MODE — high contrast
+══════════════════════════════════════════ */
+.dark {
+  --background:           #0f172a;
+  --foreground:           #f1f5f9;
+  --card:                 #1e293b;
+  --card-border:          #334155;
+  --card-foreground:      #f1f5f9;
+  --sidebar-bg:           #1e293b;
+  --sidebar-border:       #334155;
+  --sidebar-text:         #cbd5e1;
+  --sidebar-text-active:  #e0e7ff;
+  --sidebar-active-bg:    #3730a3;
+  --topbar-bg:            #1e293b;
+  --topbar-border:        #334155;
+  --text-primary:         #f1f5f9;
+  --text-secondary:       #e2e8f0;
+  --text-muted:           #94a3b8;
+  --text-disabled:        #64748b;
+  --input-bg:             #0f172a;
+  --input-border:         #475569;
+  --input-text:           #f1f5f9;
+  --input-placeholder:    #64748b;
+  --muted-bg:             #334155;
+  --divider:              #334155;
+  --ring:                 #818cf8;
+  --table-header-bg:      #0f172a;
+  --table-row-hover:      #334155;
+  --table-border:         #334155;
+  --badge-blue-bg:        #1e3a5f;
+  --badge-blue-text:      #93c5fd;
+  --badge-green-bg:       #14532d;
+  --badge-green-text:     #86efac;
+  --badge-red-bg:         #450a0a;
+  --badge-red-text:       #fca5a5;
+  --badge-yellow-bg:      #422006;
+  --badge-yellow-text:    #fde047;
+  --badge-gray-bg:        #334155;
+  --badge-gray-text:      #e2e8f0;
+}
+
+/* ══════════════════════════════════════════
+   BASE
+══════════════════════════════════════════ */
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Headings always bright */
+.dark h1, .dark h2, .dark h3,
+.dark h4, .dark h5, .dark h6 { color: var(--text-primary); }
+
+/* Body copy */
+.dark p, .dark li { color: var(--text-secondary); }
+.dark label       { color: var(--text-secondary); }
+
+/* ── Fix Tailwind hardcoded gray utilities in dark mode ── */
+.dark .text-gray-400,
+.dark .text-gray-500 { color: #94a3b8 !important; }
+
+.dark .text-gray-600,
+.dark .text-gray-700 { color: #cbd5e1 !important; }
+
+.dark .text-gray-800,
+.dark .text-gray-900 { color: #f1f5f9 !important; }
+
+/* Backgrounds */
+.dark .bg-white     { background-color: #1e293b !important; }
+.dark .bg-gray-50   { background-color: #1e293b !important; }
+.dark .bg-gray-100  { background-color: #334155 !important; }
+.dark .bg-gray-200  { background-color: #475569 !important; }
+
+/* Borders */
+.dark .border-gray-100,
+.dark .border-gray-200 { border-color: #334155 !important; }
+.dark .border-gray-300,
+.dark .border-gray-400 { border-color: #475569 !important; }
+
+/* Divide */
+.dark .divide-gray-100 > * + *,
+.dark .divide-gray-200 > * + * { border-color: #334155 !important; }
+
+/* Tables */
+.dark table  { color: var(--text-primary); }
+.dark thead  { background-color: var(--table-header-bg); }
+.dark th     { color: var(--text-secondary) !important; }
+.dark td     { color: var(--text-primary); border-color: var(--table-border); }
+.dark tr:hover { background-color: var(--table-row-hover); }
+
+/* Inputs */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: var(--input-bg) !important;
+  color: var(--input-text) !important;
+  border-color: var(--input-border) !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder { color: var(--input-placeholder); }
+
+/* Select option text (browser default is hard to override but this helps) */
+.dark option { background-color: #1e293b; color: #f1f5f9; }
+
+/* Modals / sheets */
+.dark [role="dialog"] {
+  background-color: var(--card) !important;
+  color: var(--card-foreground) !important;
+}
+
+/* Scrollbar */
+.dark ::-webkit-scrollbar       { width: 6px; height: 6px; }
+.dark ::-webkit-scrollbar-track { background: var(--background); }
+.dark ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+/* Smooth transitions */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}

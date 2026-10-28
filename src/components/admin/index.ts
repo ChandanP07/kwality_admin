@@ -1,0 +1,5 @@
+export { EditLoginIdComponent } from './EditLoginIdComponent'
+export { SetPasswordComponent } from './SetPasswordComponent'  
+export { DropUserComponent } from './DropUserComponent'
+export { EditCityComponent } from './EditCityComponent'
+export { ResendCredentialsComponent } from './ResendCredentialsComponent'

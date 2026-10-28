@@ -1,0 +1,987 @@
+// ============================================================
+// UNIFIED PRISMA SCHEMA — PrintCare Management System
+// Source of truth: Admin app (Next.js 15)
+// Merges: Admin schema + Client schema
+// Run in: admin project root
+// ============================================================ 
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+// ============================================================
+// AUTH — NextAuth.js required models (for Google OAuth)
+// These are NEW — needed so client users can sign in with Google
+// ============================================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================================
+// USER — Unified for both admin staff and client users
+// Role enum controls access: ADMIN/SUPER_ADMIN vs CLIENT
+// ============================================================
+
+model User {
+  id       String  @id @default(cuid())
+  email    String  @unique
+  // username is only set for admin staff (created by admin)
+  // null for client users who self-register
+  username String? @unique
+  password String?
+
+  // Display info (from Google OAuth or manual entry)
+  name  String?
+  image String?
+
+  role        Role    @default(CLIENT)
+  permissions Json    @default("{}")
+  isActive    Boolean @default(true)
+
+  emailVerified DateTime?
+
+  // CLIENT-specific onboarding fields
+  // These are filled during onboarding after first login
+  firmName  String?
+  industry  String?
+  phone     String?
+  // onboarded = true once firmName + industry are filled
+  // Middleware uses this to redirect new clients to /onboarding
+  onboarded Boolean @default(false)
+
+  // Security fields (from client app)
+  loginAttempts Int       @default(0)
+  lockedUntil   DateTime?
+
+  // Timestamps
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  lastLogin  DateTime?
+  lastLogout DateTime?
+
+  // Relations — admin side
+  auditLogs      AuditLog[]
+  createdClients Client[]    @relation("CreatedBy")
+  assignedComplaints Complaint[] @relation("AssignedTo")
+  createdOrders  Order[]     @relation("CreatedByAdmin")
+
+  // Relations — NextAuth OAuth (client users)
+  accounts Account[]
+  sessions Session[]
+
+  // Relation — client portal: each CLIENT user owns a ClientProfile
+  // This links the auth user to the business data
+  clientProfile ClientProfile?
+
+  @@map("users")
+}
+
+// ============================================================
+// CLIENT PROFILE
+// Bridges the User (auth) to the Client (business entity)
+// When a client user completes onboarding, a ClientProfile is
+// created linking their userId to a Client record.
+// Admin can also manually link existing Client records.
+// ============================================================
+
+model ClientProfile {
+  id       String @id @default(cuid())
+  userId   String @unique
+  clientId String @unique
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("client_profiles")
+}
+
+// ============================================================
+// CITY — used by both admin and client
+// Kept as admin schema (String id, state, country)
+// ============================================================
+
+model City {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  state     String
+  country   String   @default("India")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clients  Client[] @relation("CityClients")
+  branches Branch[]
+
+  @@map("cities")
+}
+
+// ============================================================
+// CLIENT — the business entity (company renting printers)
+// Managed by admin. Linked to a User via ClientProfile.
+// ============================================================
+
+model Client {
+  id               String     @id @default(cuid())
+  clientCode       String     @unique
+  companyName      String
+  contactPerson    String
+  email            String?
+  phone            String
+  address          String
+  state            String
+  pincode          String
+  gstNumber        String?
+  panNumber        String?
+  clientType       ClientType @default(REGULAR)
+  isActive         Boolean    @default(true)
+  billingDate      Int        @default(1)
+  creditLimit      Decimal?   @db.Decimal(12, 2)
+  autoForward      Boolean    @default(false)
+  hardcopyRequired Boolean    @default(false)
+  stopBillMail     Boolean    @default(false)
+  isSezClient      Boolean    @default(false)
+  isNgoClient      Boolean    @default(false)
+  isB2cClient      Boolean    @default(false)
+  fixedRental      Boolean    @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String
+  cityId      String
+
+  city       City          @relation("CityClients", fields: [cityId], references: [id])
+  createdBy  User          @relation("CreatedBy", fields: [createdById], references: [id])
+
+  // Business data relations
+  agreements    Agreement[]
+  bills         Bill[]
+  branches      Branch[]
+  printers      ClientPrinter[]
+  complaints    Complaint[]
+  dispatches    Dispatch[]
+  orders        Order[]
+  payments      Payment[]
+
+  // Portal link
+  clientProfile ClientProfile?
+  billSetting    ClientBillSetting?
+
+  @@map("clients")
+}
+
+// ============================================================
+// BRANCH — office/location of a client
+// Extended from both schemas: includes Location concept from client app
+// ============================================================
+
+model Branch {
+  id            String  @id @default(cuid())
+  branchName    String
+  address       String
+  contactPerson String
+  phone         String
+  email         String?
+  clientId      String
+  cityId        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client    Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  city      City?      @relation(fields: [cityId], references: [id])
+  locations Location[]
+
+  @@map("branches")
+}
+
+// ============================================================
+// LOCATION — sub-location within a branch
+// From client app. Gives clients fine-grained location tracking.
+// ============================================================
+
+model Location {
+  id       String  @id @default(cuid())
+  name     String
+  pincode  String?
+  address  String?
+  branchId String
+
+  branch     Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  orders     Order[]
+  complaints Complaint[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("locations")
+}
+
+// ============================================================
+// PRINTER MODELS
+// ============================================================
+
+model PrinterModel {
+  id        String      @id @default(cuid())
+  modelName String      @unique
+  brand     String
+  type      PrinterType
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  cartridges CartridgeModel[]
+  printers   Printer[]
+
+  @@map("printer_models")
+}
+
+model Printer {
+  id            String           @id @default(cuid())
+  serialNumber  String           @unique
+  modelId       String
+  purchaseDate  DateTime?
+  purchasePrice Decimal?         @db.Decimal(10, 2)
+  vendorName    String?
+  condition     PrinterCondition @default(NEW)
+  location      String?
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  model          PrinterModel    @relation(fields: [modelId], references: [id])
+  agreements     Agreement[]
+  clientPrinters ClientPrinter[]
+
+  @@map("printers")
+}
+
+model ClientPrinter {
+  id               String     @id @default(cuid())
+  clientId         String
+  printerId        String
+  installDate      DateTime
+  isActive         Boolean    @default(true)
+  rentalType       RentalType?
+  monthlyRental    Decimal?   @db.Decimal(8, 2)
+  perPageRate      Decimal?   @db.Decimal(5, 2)
+  initialPageCount Int        @default(0)
+  currentPageCount Int        @default(0)
+  lastReadingDate  DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  client        Client         @relation(fields: [clientId], references: [id])
+  printer       Printer        @relation(fields: [printerId], references: [id])
+  pageCountings PageCounting[]
+  complaints    Complaint[]    // NEW: complaints can be linked to a specific printer
+  orders        Order[]        // NEW: orders can be linked to a specific printer
+
+  @@unique([clientId, printerId])
+  @@map("client_printers")
+}
+
+// ============================================================
+// CARTRIDGES
+// ============================================================
+
+model CartridgeModel {
+  id             String         @id @default(cuid())
+  modelName      String         @unique
+  printerModelId String
+  type           CartridgeType
+  color          CartridgeColor @default(BLACK)
+  pageYield      Int?
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  printerModel PrinterModel @relation(fields: [printerModelId], references: [id])
+  cartridges   Cartridge[]
+  orderItems   OrderItem[]
+
+  @@map("cartridge_models")
+}
+
+model Cartridge {
+  id                String             @id @default(cuid())
+  modelId           String
+  batchNumber       String?
+  manufacturingDate DateTime?
+  expiryDate        DateTime?
+  condition         CartridgeCondition @default(NEW)
+  location          String             @default("WAREHOUSE")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  model         CartridgeModel @relation(fields: [modelId], references: [id])
+  dispatchItems DispatchItem[]
+
+  @@map("cartridges")
+}
+
+// ============================================================
+// ORDER — placed by client, managed by admin
+//
+// KEY CHANGE: added clientUserId so client portal users can
+// create orders directly. Also added locationId and printerId
+// from client app. createdById is now optional (null = client
+// created it themselves via portal).
+// ============================================================
+
+model Order {
+  id           String        @id @default(cuid())
+  orderNumber  String        @unique
+  clientId     String
+  orderDate    DateTime      @default(now())
+  requiredDate DateTime?
+  status       OrderStatus   @default(PENDING)
+  priority     OrderPriority @default(NORMAL)
+  notes        String?
+  totalAmount  Decimal?      @db.Decimal(12, 2)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // Who created this order
+  // If createdById is set → admin created it
+  // If clientUserId is set → client created it via portal
+  createdById   String? // nullable now — admin staff user
+  clientUserId  String? // NEW — client portal user (User with role=CLIENT)
+
+  // Location tracking (from client app)
+  locationId String?
+  printerId  String? // which printer this order is for
+
+  // Extra fields from client app
+  productName   String?
+  serialNumber  String?
+  type          String? // cartridge type / product type
+  modelNumber   String?
+  quantity      Int?
+  contactPerson String?
+  contactNumber String?
+  poNumber      String?
+
+  dispatches  Dispatch[]
+  orderItems  OrderItem[]
+  client      Client        @relation(fields: [clientId], references: [id])
+  createdBy   User?         @relation("CreatedByAdmin", fields: [createdById], references: [id])
+  location    Location?     @relation(fields: [locationId], references: [id])
+  printer     ClientPrinter? @relation(fields: [printerId], references: [id])
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id               String   @id @default(cuid())
+  orderId          String
+  cartridgeModelId String
+  quantity         Int
+  unitPrice        Decimal  @db.Decimal(8, 2)
+  totalPrice       Decimal  @db.Decimal(10, 2)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  cartridgeModel CartridgeModel @relation(fields: [cartridgeModelId], references: [id])
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_items")
+}
+
+// ============================================================
+// DISPATCH
+// ============================================================
+
+model Dispatch {
+  id             String         @id @default(cuid())
+  dispatchNumber String         @unique
+  orderId        String
+  clientId       String
+  dispatchDate   DateTime       @default(now())
+  status         DispatchStatus @default(PENDING)
+  deliveryBoy    String?
+  vehicleNumber  String?
+  courierCompany String?
+  trackingNumber String?
+  deliveryDate   DateTime?
+  receivedBy     String?
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  dispatchItems DispatchItem[]
+  client        Client         @relation(fields: [clientId], references: [id])
+  order         Order          @relation(fields: [orderId], references: [id])
+
+  @@map("dispatches")
+}
+
+model DispatchItem {
+  id          String   @id @default(cuid())
+  dispatchId  String
+  cartridgeId String
+  quantity    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cartridge Cartridge @relation(fields: [cartridgeId], references: [id])
+  dispatch  Dispatch  @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+
+  @@map("dispatch_items")
+}
+
+// ============================================================
+// BILL — generated by admin, viewed by client
+//
+// KEY CHANGE: added clientUserId and pdfUrl so client can
+// download the bill PDF from the portal.
+// ============================================================
+
+model Bill {
+  id            String     @id @default(cuid())
+  billNumber    String     @unique
+  clientId      String
+  billDate      DateTime   @default(now())
+  dueDate       DateTime?
+  billType      BillType
+  subtotal      Decimal    @db.Decimal(12, 2)
+  taxAmount     Decimal    @default(0) @db.Decimal(12, 2)
+  totalAmount   Decimal    @db.Decimal(12, 2)
+  paidAmount    Decimal    @default(0) @db.Decimal(12, 2)
+  balanceAmount Decimal    @db.Decimal(12, 2)
+  status        BillStatus @default(PENDING)
+
+  // NEW: URL to the generated PDF (stored in cloud or local)
+  pdfUrl String?
+
+  // NEW: flag for client-visible overdue
+  overdue Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  billItems BillItem[]
+  billPeriod BillPeriod?
+  client    Client     @relation(fields: [clientId], references: [id])
+  payments  Payment[]
+
+  @@map("bills")
+}
+
+model BillItem {
+  id          String   @id @default(cuid())
+  billId      String
+  description String
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(8, 2)
+  totalPrice  Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bill Bill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@map("bill_items")
+}
+
+// ============================================================
+// PAYMENT
+// ============================================================
+
+model Payment {
+  id            String        @id @default(cuid())
+  paymentNumber String        @unique
+  clientId      String
+  billId        String?
+  paymentDate   DateTime      @default(now())
+  amount        Decimal       @db.Decimal(12, 2)
+  paymentMethod PaymentMethod
+  chequeNumber  String?
+  chequeDate    DateTime?
+  bankName      String?
+  transactionId String?
+  status        PaymentStatus @default(PENDING)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  bill   Bill?   @relation(fields: [billId], references: [id])
+  client Client  @relation(fields: [clientId], references: [id])
+
+  @@map("payments")
+}
+
+// ============================================================
+// COMPLAINT — raised by client, resolved by admin
+//
+// KEY CHANGE: added clientUserId and locationId from client app.
+// CallLog model merged in from client app.
+// ============================================================
+
+model Complaint {
+  id              String            @id @default(cuid())
+  complaintNumber String            @unique
+  clientId        String
+  title           String
+  description     String
+  priority        ComplaintPriority @default(MEDIUM)
+  status          ComplaintStatus   @default(OPEN)
+  category        ComplaintCategory
+  reportedDate    DateTime          @default(now())
+  resolvedDate    DateTime?
+  resolution      String?
+  feedback        String?
+  rating          Int?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  assignedToId String?
+
+  // NEW from client app
+  locationId   String?
+  printerId    String? // which printer has the issue
+  contactPerson String?
+  contactNumber String?
+  problemType  String? // maps to category for client-created complaints
+
+  assignedTo  User?          @relation("AssignedTo", fields: [assignedToId], references: [id])
+  client      Client         @relation(fields: [clientId], references: [id])
+  location    Location?      @relation(fields: [locationId], references: [id])
+  printer     ClientPrinter? @relation(fields: [printerId], references: [id])
+  callLogs    CallLog[]      // NEW: admin call logs on a complaint
+
+  @@map("complaints")
+}
+
+// ============================================================
+// CALL LOG — admin notes/call records on a complaint
+// From client app. Tracks technician visits, calls, resolution steps.
+// ============================================================
+
+model CallLog {
+  id             String    @id @default(cuid())
+  complaintId    String
+  callDate       DateTime  @default(now())
+  doneDate       DateTime?
+  details        String?
+  loggedBy       String?
+  clientFeedback String?
+  callDone       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@map("call_logs")
+}
+
+// ============================================================
+// AGREEMENT
+// ============================================================
+
+model Agreement {
+  id              String          @id @default(cuid())
+  agreementNumber String          @unique
+  clientId        String
+  printerId       String?
+  agreementType   AgreementType
+  startDate       DateTime
+  endDate         DateTime
+  status          AgreementStatus @default(DRAFT)
+  monthlyRental   Decimal?        @db.Decimal(8, 2)
+  perPageRate     Decimal?        @db.Decimal(5, 2)
+  securityDeposit Decimal?        @db.Decimal(10, 2)
+  terms           String?
+  signedDate      DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  client  Client   @relation(fields: [clientId], references: [id])
+  printer Printer? @relation(fields: [printerId], references: [id])
+
+  @@map("agreements")
+}
+
+// ============================================================
+// PAGE COUNTING
+// ============================================================
+
+model PageCounting {
+  id              String   @id @default(cuid())
+  clientPrinterId String
+  readingDate     DateTime @default(now())
+  pageCount       Int
+  previousCount   Int      @default(0)
+  pagesUsed       Int
+  readBy          String
+  verifiedBy      String?
+  verifiedDate    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  clientPrinter ClientPrinter @relation(fields: [clientPrinterId], references: [id])
+
+  @@map("page_countings")
+}
+
+// ============================================================
+// ENQUIRY — from client app landing page contact form
+// NEW in admin schema. Admin can view and respond to enquiries.
+// ============================================================
+
+model Enquiry {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  name        String
+  email       String
+  phone       String
+  company     String   @default("")
+  printerName String   @default("")
+  message     String   @default("")
+  userEmail   String   @default("")
+  status      String   @default("new") // new, contacted, converted, closed
+
+  @@map("enquiries")
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  table     String
+  recordId  String
+  oldValues Json?
+  newValues Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ============================================================
+// SETTINGS
+// ============================================================
+
+model Setting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// ============================================================
+// CLIENT GROUPS
+// ============================================================
+
+model ClientGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   @default("CLIENT_GROUP")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("client_groups")
+}
+
+// ============================================================
+// REPLACEMENT & TERMINATION
+// ============================================================
+
+model Replacement {
+  id              String   @id @default(cuid())
+  clientId        String
+  oldPrinterId    String
+  newPrinterId    String
+  replacementDate DateTime
+  reason          String
+  technicianName  String
+  notes           String?
+  status          String   @default("PENDING")
+  createdAt       DateTime @default(now())
+
+  @@map("replacements")
+}
+
+model Termination {
+  id                String   @id @default(cuid())
+  terminationNumber String   @unique
+  clientId          String
+  terminationDate   DateTime
+  effectiveDate     DateTime
+  reason            String
+  refundAmount      Decimal  @db.Decimal(10, 2)
+  notes             String?
+  status            String   @default("PENDING")
+  processedBy       String
+  createdAt         DateTime @default(now())
+
+  @@map("terminations")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  EMPLOYEE
+  CLIENT  // self-registered portal users
+}
+
+enum ClientType {
+  REGULAR
+  FRANCHISE
+  DEALER
+  DISTRIBUTOR
+}
+
+enum PrinterType {
+  LASER
+  INKJET
+  DOT_MATRIX
+  THERMAL
+}
+
+enum PrinterCondition {
+  NEW
+  GOOD
+  FAIR
+  NEEDS_REPAIR
+  RETIRED
+}
+
+enum RentalType {
+  MONTHLY_RENTAL
+  PER_PAGE
+  FIXED_RENTAL
+}
+
+enum CartridgeType {
+  ORIGINAL
+  COMPATIBLE
+  REFILLED
+}
+
+enum CartridgeColor {
+  BLACK
+  CYAN
+  MAGENTA
+  YELLOW
+  COLOR
+}
+
+enum CartridgeCondition {
+  NEW
+  REFILLED
+  EMPTY
+  DAMAGED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  READY
+  DISPATCHED
+  DELIVERED
+  CANCELLED
+}
+
+enum OrderPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum DispatchStatus {
+  PENDING
+  DISPATCHED
+  IN_TRANSIT
+  DELIVERED
+  RETURNED
+}
+
+enum BillType {
+  CARTRIDGE
+  RENTAL
+  PER_PAGE
+  INSTALLATION
+  MAINTENANCE
+}
+
+enum BillStatus {
+  PENDING
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CHEQUE
+  BANK_TRANSFER
+  UPI
+  CARD
+  ONLINE
+}
+
+enum PaymentStatus {
+  PENDING
+  CLEARED
+  BOUNCED
+  CANCELLED
+}
+
+enum ComplaintPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ComplaintStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  REOPENED
+}
+
+enum ComplaintCategory {
+  PRINTER_ISSUE
+  CARTRIDGE_ISSUE
+  BILLING_ISSUE
+  DELIVERY_ISSUE
+  SERVICE_ISSUE
+  OTHER
+}
+
+enum AgreementType {
+  RENTAL
+  PER_PAGE
+  AMC
+  LEASE
+}
+
+enum AgreementStatus {
+  DRAFT
+  SENT
+  SIGNED
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+// ============================================================
+// BILLING — extra models needed by Chalan billing logic
+// ============================================================
+
+// Stores per-client billing configuration:
+// GST rate, tally name, billing stop flags, cartridge rates
+model ClientBillSetting {
+  id         String   @id @default(cuid())
+  clientId   String   @unique
+  gstRate    Decimal  @default(18) @db.Decimal(5, 2)  // 0, 12, 18, 28
+  tallyName  String?                                   // name used in Tally ledger
+  stopBill   Boolean  @default(false)                  // manual stop flag
+  autoStop   Boolean  @default(false)                  // auto-stopped by system
+  autoStopReason String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  client         Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  cartridgeRates CartridgeRateEntry[]
+
+  @@map("client_bill_settings")
+}
+
+// Per-cartridge rate overrides for a client
+model CartridgeRateEntry {
+  id              String   @id @default(cuid())
+  clientBillSettingId String
+  cartridgeModel  String
+  ratePerUnit     Decimal  @db.Decimal(10, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  clientBillSetting ClientBillSetting @relation(fields: [clientBillSettingId], references: [id], onDelete: Cascade)
+
+  @@unique([clientBillSettingId, cartridgeModel])
+  @@map("cartridge_rate_entries")
+}
+
+// Tracks which month a bill was generated for (monthly billing)
+// Extends the Bill model with billing-period metadata
+model BillPeriod {
+  id          String   @id @default(cuid())
+  billId      String   @unique
+  billMonth   Int                        // 1–12
+  billYear    Int
+  periodStart DateTime?
+  periodEnd   DateTime?
+  createdAt   DateTime @default(now())
+
+  bill Bill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@map("bill_periods")
+}
+

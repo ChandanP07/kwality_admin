@@ -11,16 +11,16 @@ const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE']
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params:  Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session || !ADMIN_ROLES.includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
+    const { id } = await params
     const order = await prisma.order.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         client: true,
         orderItems: { include: { cartridgeModel: true } },
@@ -45,14 +45,14 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params:  Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session || !ADMIN_ROLES.includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
+    const { id } = await params
     const body = await request.json()
 
     // Only allow updating specific fields — never clientId
@@ -63,7 +63,7 @@ export async function PATCH(
     if (body.totalAmount !== undefined) allowedFields.totalAmount = body.totalAmount
 
     const order = await prisma.order.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         ...allowedFields,
         updatedAt: new Date(),
@@ -75,7 +75,7 @@ export async function PATCH(
 
     // If status changed to DISPATCHED and trackingNumber provided, create/update dispatch
     if (body.status === 'DISPATCHED' && body.trackingNumber) {
-      const existing = await prisma.dispatch.findFirst({ where: { orderId: params.id } })
+      const existing = await prisma.dispatch.findFirst({ where: { orderId: id } })
       if (existing) {
         await prisma.dispatch.update({
           where: { id: existing.id },
@@ -90,7 +90,7 @@ export async function PATCH(
         await prisma.dispatch.create({
           data: {
             dispatchNumber: `DSP-${Date.now()}`,
-            orderId: params.id,
+            orderId: id,
             clientId: order.clientId,
             status: 'DISPATCHED',
             trackingNumber: body.trackingNumber,
@@ -104,7 +104,7 @@ export async function PATCH(
     // If status changed to DELIVERED update dispatch too
     if (body.status === 'DELIVERED') {
       await prisma.dispatch.updateMany({
-        where: { orderId: params.id, status: { not: 'DELIVERED' } },
+        where: { orderId: id, status: { not: 'DELIVERED' } },
         data: { status: 'DELIVERED', deliveryDate: new Date() },
       })
     }

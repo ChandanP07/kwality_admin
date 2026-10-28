@@ -34,16 +34,18 @@ async function getBillWithDetails(id: string) {
 // ── GET — serve PDF (called by client portal download button) ─────────────────
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+
     // Allow both admin users and CLIENT users (for portal download)
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const bill = await getBillWithDetails(params.id)
+    const { id } = await params
+    const bill = await getBillWithDetails(id)
     if (!bill) {
       return NextResponse.json({ error: 'Bill not found' }, { status: 404 })
     }
@@ -108,24 +110,24 @@ export async function GET(
 // After this, bill.pdfUrl is set and client can download via GET above
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }>  }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session || session.user.role === 'CLIENT') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const bill = await getBillWithDetails(params.id)
+    const { id } = await params
+    const bill = await getBillWithDetails(id)
     if (!bill) {
       return NextResponse.json({ error: 'Bill not found' }, { status: 404 })
     }
 
     // Store the API URL as pdfUrl so client knows it's downloadable
-    const pdfUrl = `/api/admin/bills/${params.id}/pdf`
+    const pdfUrl = `/api/admin/bills/${id}/pdf`
 
     await prisma.bill.update({
-      where: { id: params.id },
+      where: { id: id },
       data:  {
         pdfUrl,
         status: bill.status === 'PENDING' ? 'SENT' : bill.status,

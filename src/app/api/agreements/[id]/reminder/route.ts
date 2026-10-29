@@ -7,17 +7,17 @@ import { logger } from '@/lib/logger'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
+    const { id } = await params
     // Get agreement details
     const agreement = await prisma.agreement.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         client: true
       }
@@ -38,7 +38,7 @@ export async function POST(
 
     // Update agreement to track reminder sent
     await prisma.agreement.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         status: 'SENT', // Update status if needed
         updatedAt: new Date()
@@ -51,7 +51,7 @@ export async function POST(
         userId: session.user?.id || '',
         action: 'SEND_REMINDER',
         table: 'Agreement',
-        recordId: params.id,
+        recordId: id,
         newValues: {
           reminderSentAt: new Date(),
           sentTo: agreement.client.email

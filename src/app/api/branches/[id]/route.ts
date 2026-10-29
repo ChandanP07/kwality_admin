@@ -18,16 +18,16 @@ const branchSchema = z.object({
 // GET /api/branches/[id] - Get branch by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
+    const { id } = await params
     const branch = await prisma.branch.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         client: true
       }
@@ -51,14 +51,14 @@ export async function GET(
 // PUT /api/branches/[id] - Update branch
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
+    const { id } = await params
     const body = await request.json()
 
     // Validate input data
@@ -66,7 +66,7 @@ export async function PUT(
 
     // Get existing branch for audit log
     const existingBranch = await prisma.branch.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     })
 
     if (!existingBranch) {
@@ -86,7 +86,7 @@ export async function PUT(
 
     // Update branch
     const updatedBranch = await prisma.branch.update({
-      where: { id: params.id },
+      where: { id: id },
       data: validatedData,
       include: {
         client: {
@@ -119,7 +119,7 @@ export async function PUT(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation failed', details: error.errors },
+        { error: 'Validation failed', details: error.issues },
         { status: 400 }
       )
     }
@@ -135,16 +135,16 @@ export async function PUT(
 // DELETE /api/branches/[id] - Delete branch
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
+    const { id } = await params
     const branch = await prisma.branch.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     })
 
     if (!branch) {
@@ -153,7 +153,7 @@ export async function DELETE(
 
     // Delete branch
     await prisma.branch.delete({
-      where: { id: params.id }
+      where: { id: id }
     })
 
     // Log the action
@@ -162,7 +162,7 @@ export async function DELETE(
         userId: session.user.id,
         action: 'DELETE_BRANCH',
         table: 'branches',
-        recordId: params.id,
+        recordId: id,
         oldValues: branch as any
       }
     })

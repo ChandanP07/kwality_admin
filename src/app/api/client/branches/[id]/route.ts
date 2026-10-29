@@ -8,15 +8,15 @@ import { getClientSession } from '@/lib/client-auth'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const auth = await getClientSession()
     if (auth instanceof NextResponse) return auth
-
+    const { id } = await params
     // Verify this branch belongs to the client
     const branch = await prisma.branch.findFirst({
-      where: { id: params.id, clientId: auth.clientId },
+      where: { id: id, clientId: auth.clientId },
     })
     if (!branch) {
       return NextResponse.json(
@@ -28,7 +28,7 @@ export async function PUT(
     const body = await request.json()
 
     const updated = await prisma.branch.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         branchName:    body.name          ?? branch.branchName,
         address:       body.address       ?? branch.address,

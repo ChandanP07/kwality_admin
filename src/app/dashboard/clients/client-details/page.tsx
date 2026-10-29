@@ -1196,7 +1196,7 @@ function MasterUpdationComponent({ clients, onSuccess }: { clients: any[], onSuc
 
     try {
       const updates = selectedClients.map(clientId => {
-        let value = updateValue
+        let value: any = updateValue
         
         // Convert values based on type
         if (updateType === 'billing_date') {

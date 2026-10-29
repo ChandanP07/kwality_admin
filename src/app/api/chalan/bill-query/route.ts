@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       paidAmount: Number(bill.paidAmount),
       balanceAmount: Number(bill.balanceAmount),
       status: bill.status,
-      paymentStatus: bill.paidAmount >= bill.totalAmount ? 'PAID' : bill.paidAmount > 0 ? 'PARTIAL' : 'UNPAID',
+      paymentStatus: Number(bill.paidAmount) >= Number(bill.totalAmount) ? 'PAID' : Number(bill.paidAmount) > 0 ? 'PARTIAL' : 'UNPAID',
       billItems: bill.billItems,
       payments: bill.payments,
       period: bill.billPeriod

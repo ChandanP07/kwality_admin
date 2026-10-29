@@ -31,7 +31,7 @@ interface Agreement {
   agreementNumber: string;
   clientId: string;
   clientName: string;
-  status: 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'SIGNED' | 'PENDING_DC';
+  status: 'DRAFT' | 'SENT' | 'ACTIVE' | 'EXPIRED' | 'SIGNED' | 'PENDING_DC' | 'TERMINATED';
   agreementType: 'RENTAL' | 'PER_PAGE' | 'AMC' | 'LEASE';
   startDate: string;
   endDate: string;

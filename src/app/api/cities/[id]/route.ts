@@ -16,16 +16,16 @@ const citySchema = z.object({
 // GET /api/cities/[id] - Get city by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
+    const { id } = await params
     const city = await prisma.city.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         clients: {
           select: {
@@ -61,14 +61,14 @@ export async function GET(
 // PUT /api/cities/[id] - Update city
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
+    const { id } = await params
     // Check if user has admin/manager/super_admin role
     if (session.user.role !== 'ADMIN' && session.user.role !== 'MANAGER' && session.user.role !== 'SUPER_ADMIN') {
       return NextResponse.json(
@@ -84,7 +84,7 @@ export async function PUT(
 
     // Get existing city for audit log
     const existingCity = await prisma.city.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     })
 
     if (!existingCity) {
@@ -97,7 +97,7 @@ export async function PUT(
         where: {
           name: { equals: validatedData.name, mode: 'insensitive' },
           state: { equals: validatedData.state, mode: 'insensitive' },
-          id: { not: params.id }
+          id: { not: id }
         }
       })
 
@@ -111,7 +111,7 @@ export async function PUT(
 
     // Update city
     const updatedCity = await prisma.city.update({
-      where: { id: params.id },
+      where: { id: id },
       data: validatedData
     })
 
@@ -135,7 +135,7 @@ export async function PUT(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation failed', details: error.errors },
+        { error: 'Validation failed', details: error.issues },
         { status: 400 }
       )
     }
@@ -151,14 +151,14 @@ export async function PUT(
 // DELETE /api/cities/[id] - Delete city (soft delete)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
+    const { id } = await params
     // Check if user has admin or super_admin role
     if (session.user.role !== 'ADMIN' && session.user.role !== 'SUPER_ADMIN') {
       return NextResponse.json(
@@ -170,7 +170,7 @@ export async function DELETE(
     // Check if city has active clients
     const clientCount = await prisma.client.count({
       where: {
-        cityId: params.id,
+        cityId: id,
         isActive: true
       }
     })
@@ -183,7 +183,7 @@ export async function DELETE(
     }
 
     const city = await prisma.city.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     })
 
     if (!city) {
@@ -192,7 +192,7 @@ export async function DELETE(
 
     // Soft delete by setting isActive to false
     const deletedCity = await prisma.city.update({
-      where: { id: params.id },
+      where: { id: id },
       data: { isActive: false }
     })
 
@@ -202,7 +202,7 @@ export async function DELETE(
         userId: session.user.id,
         action: 'DELETE_CITY',
         table: 'cities',
-        recordId: params.id,
+        recordId: id,
         oldValues: city as any,
         newValues: deletedCity as any
       }

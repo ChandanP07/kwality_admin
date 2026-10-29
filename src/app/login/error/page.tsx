@@ -1,11 +1,12 @@
 // app/login/error/page.tsx
 'use client'
 
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { AlertCircle } from 'lucide-react'
 
-export default function LoginErrorPage() {
+function LoginErrorContent() {
   const searchParams = useSearchParams()
   const error = searchParams.get('error')
 
@@ -55,5 +56,17 @@ export default function LoginErrorPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function LoginErrorPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+      </div>
+    }>
+      <LoginErrorContent />
+    </Suspense>
   )
 }

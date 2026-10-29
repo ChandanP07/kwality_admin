@@ -9,14 +9,14 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
+    const { id } = await params
     const complaint = await prisma.complaint.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         client:     true,
         assignedTo: { select: { id: true, name: true, username: true } },
@@ -34,16 +34,16 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
+    const { id } = await params
     const body = await request.json()
     const { status, assignedToId, resolution, callLog } = body
 
-    const existing = await prisma.complaint.findUnique({ where: { id: params.id } })
+    const existing = await prisma.complaint.findUnique({ where: { id: id } })
     if (!existing) return NextResponse.json({ error: 'Complaint not found' }, { status: 404 })
 
     const updateData: any = { updatedAt: new Date() }
@@ -56,7 +56,7 @@ export async function PATCH(
     }
 
     const updated = await prisma.complaint.update({
-      where: { id: params.id },
+      where: { id: id },
       data:  updateData,
       include: {
         client:     { select: { companyName: true } },
@@ -69,7 +69,7 @@ export async function PATCH(
     if (callLog?.details?.trim()) {
       await prisma.callLog.create({
         data: {
-          complaintId:    params.id,
+          complaintId:    id,
           details:        callLog.details,
           loggedBy:       session.user.username ?? session.user.name ?? 'Admin',
           clientFeedback: callLog.clientFeedback ?? null,

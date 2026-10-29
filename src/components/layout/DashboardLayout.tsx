@@ -12,7 +12,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import ThemeToggle from '@/components/ThemeToggle'
 
-interface DashboardLayoutProps { children: React.ReactNode }
+interface DashboardLayoutProps {
+  children: React.ReactNode
+  currentDate?: string
+}
 
 interface NavigationItem {
   name: string

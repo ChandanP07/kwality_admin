@@ -242,6 +242,6 @@ function BillPDF({ data }: { data: BillData }) {
 
 export async function generateBillPDF(data: BillData): Promise<Buffer> {
   const element = React.createElement(BillPDF, { data })
-  const buffer  = await renderToBuffer(element)
+  const buffer  = await renderToBuffer(element as any)
   return buffer
 }

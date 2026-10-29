@@ -7,16 +7,16 @@ import { prisma } from '@/lib/prisma'
 // GET single agreement
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
+    const { id } = await params
     const agreement = await prisma.agreement.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         client: true,
         printer: true
@@ -37,18 +37,18 @@ export async function GET(
 // UPDATE agreement
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
+    const { id } = await params
     const body = await request.json()
     
     const agreement = await prisma.agreement.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         startDate: body.startDate ? new Date(body.startDate) : undefined,
         endDate: body.endDate ? new Date(body.endDate) : undefined,
@@ -71,7 +71,7 @@ export async function PUT(
         userId: session.user?.id || '',
         action: 'UPDATE',
         table: 'Agreement',
-        recordId: params.id,
+        recordId: id,
         newValues: body
       }
     })
@@ -86,17 +86,17 @@ export async function PUT(
 // DELETE agreement
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
+    const { id } = await params
     // Check if agreement exists
     const existing = await prisma.agreement.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     })
 
     if (!existing) {
@@ -105,7 +105,7 @@ export async function DELETE(
 
     // Delete agreement
     await prisma.agreement.delete({
-      where: { id: params.id }
+      where: { id: id }
     })
 
     // Create audit log
@@ -114,7 +114,7 @@ export async function DELETE(
         userId: session.user?.id || '',
         action: 'DELETE',
         table: 'Agreement',
-        recordId: params.id,
+        recordId: id,
         oldValues: existing
       }
     })

@@ -192,7 +192,7 @@ export default function AdminPage() {
 }
 
 function renderModule(moduleId: string) {
-  const MODULES = {
+  const MODULES: Record<string, () => React.JSX.Element> = {
   'new-login': NewLoginIdComponent,
   'edit-login': EditLoginIdComponent,
   'set-password': SetPasswordComponent,
@@ -231,7 +231,7 @@ function NewLoginIdComponent() {
     email: '',
     mobile: '',
     password: '',
-    role: ROLES.EMPLOYEE,
+    role: ROLES.EMPLOYEE as string,
     permissions: {
       admin: false,
       mis: false,
@@ -270,7 +270,7 @@ function NewLoginIdComponent() {
           email: '',
           mobile: '',
           password: '',
-          role: ROLES.EMPLOYEE,
+          role: ROLES.EMPLOYEE as string,
           permissions: {
             admin: false,
             mis: false,
@@ -421,7 +421,7 @@ function NewLoginIdComponent() {
             email: '',
             mobile: '',
             password: '',
-            role: ROLES.EMPLOYEE,
+            role: ROLES.EMPLOYEE as string,
             permissions: {
               admin: false,
               mis: false,

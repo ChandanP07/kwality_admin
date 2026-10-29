@@ -6,19 +6,19 @@ import { prisma } from '@/lib/prisma'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
+    const { id } = await params
     const body = await request.json()
     
     // Update agreement status from PENDING_DC to ACTIVE
     const agreement = await prisma.agreement.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         status: 'ACTIVE',
         updatedAt: new Date()
@@ -27,7 +27,7 @@ export async function PUT(
 
     // Log the DC details (you can extend this based on your schema)
     // console.log('DC Updated:', { 
-    //   agreementId: params.id, 
+    //   agreementId: id, 
     //   dcNumber: body.dcNumber,
     //   dcDate: body.dcDate 
     // })

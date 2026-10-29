@@ -46,7 +46,8 @@ export async function createExcelBuffer(
     fgColor: { argb: 'FFD3D3D3' },
   };
 
-  return await workbook.xlsx.writeBuffer() as Buffer;
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(buffer);
 }
 
 export async function generateExcel(config: ExcelConfig): Promise<Buffer> {
@@ -137,5 +138,5 @@ export async function generateExcel(config: ExcelConfig): Promise<Buffer> {
 
   // Generate buffer
   const buffer = await workbook.xlsx.writeBuffer()
-  return buffer as Buffer
+  return Buffer.from(buffer)
 }

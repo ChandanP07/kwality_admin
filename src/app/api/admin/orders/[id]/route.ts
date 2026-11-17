@@ -73,17 +73,17 @@ export async function PATCH(
       },
     })
 
-    // If status changed to DISPATCHED and trackingNumber provided, create/update dispatch
-    if (body.status === 'DISPATCHED' && body.trackingNumber) {
+    // If status changed to DISPATCHED or tracking info provided, create/update dispatch
+    if (body.status === 'DISPATCHED' || body.trackingNumber || body.courierCompany) {
       const existing = await prisma.dispatch.findFirst({ where: { orderId: id } })
       if (existing) {
         await prisma.dispatch.update({
           where: { id: existing.id },
           data: {
-            status: 'DISPATCHED',
-            trackingNumber: body.trackingNumber,
-            courierCompany: body.courierCompany ?? existing.courierCompany,
-            deliveryBoy: body.deliveryBoy ?? existing.deliveryBoy,
+            ...(body.status === 'DISPATCHED' ? { status: 'DISPATCHED' } : {}),
+            ...(body.trackingNumber !== undefined ? { trackingNumber: body.trackingNumber } : {}),
+            ...(body.courierCompany !== undefined ? { courierCompany: body.courierCompany } : {}),
+            ...(body.deliveryBoy !== undefined ? { deliveryBoy: body.deliveryBoy } : {}),
           },
         })
       } else {
@@ -92,10 +92,10 @@ export async function PATCH(
             dispatchNumber: `DSP-${Date.now()}`,
             orderId: id,
             clientId: order.clientId,
-            status: 'DISPATCHED',
-            trackingNumber: body.trackingNumber,
-            courierCompany: body.courierCompany ?? null,
-            deliveryBoy: body.deliveryBoy ?? null,
+            status: body.status === 'DISPATCHED' ? 'DISPATCHED' : 'PENDING',
+            trackingNumber: body.trackingNumber || null,
+            courierCompany: body.courierCompany || null,
+            deliveryBoy: body.deliveryBoy || null,
           },
         })
       }

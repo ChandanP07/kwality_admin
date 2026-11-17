@@ -23,6 +23,13 @@ export async function GET(request: NextRequest) {
       },
       include: {
         billItems: true,
+        client: {
+          select: {
+            city: {
+              select: { id: true, name: true },
+            },
+          },
+        },
         payments: {
           select: {
             amount: true,
@@ -55,6 +62,7 @@ export async function GET(request: NextRequest) {
       paid: bill.status === 'PAID',
       overdue: bill.overdue || bill.status === 'OVERDUE',
       attachment: bill.pdfUrl ?? null,
+      city: bill.client?.city ?? null,
       billItems: bill.billItems,
       payments: bill.payments,
     }))

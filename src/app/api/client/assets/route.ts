@@ -19,6 +19,9 @@ export async function GET(request: NextRequest) {
         isActive: true,
       },
       include: {
+        client: {
+          select: { companyName: true },
+        },
         printer: {
           include: {
             model: {
@@ -50,6 +53,7 @@ export async function GET(request: NextRequest) {
     // Shape response for the client UI
     const formatted = assets.map((asset) => ({
       id: asset.id,
+      clientName: asset.client.companyName,
       serialNumber: asset.printer.serialNumber,
       modelName: asset.printer.model.modelName,
       brand: asset.printer.model.brand,

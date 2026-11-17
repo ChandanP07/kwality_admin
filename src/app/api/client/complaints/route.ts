@@ -14,12 +14,23 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
+    const serialNumber = searchParams.get('serialNumber')
+
+    const where: any = {
+      clientId: auth.clientId,
+      ...(status ? { status: status as any } : {}),
+    }
+
+    if (serialNumber) {
+      where.OR = [
+        { printer: { printer: { serialNumber: { equals: serialNumber, mode: 'insensitive' } } } },
+        { title: { contains: serialNumber, mode: 'insensitive' } },
+        { description: { contains: serialNumber, mode: 'insensitive' } },
+      ]
+    }
 
     const complaints = await prisma.complaint.findMany({
-      where: {
-        clientId: auth.clientId,
-        ...(status ? { status: status as any } : {}),
-      },
+      where,
       include: {
         callLogs: {
           orderBy: { callDate: 'desc' },
@@ -44,7 +55,24 @@ export async function GET(request: NextRequest) {
       orderBy: { reportedDate: 'desc' },
     })
 
-    return NextResponse.json(complaints)
+    const formatted = complaints.map((c) => {
+      const printerSerial = c.printer?.printer?.serialNumber
+      const printerModel = c.printer?.printer?.model?.modelName
+
+      let extractedSerial = printerSerial
+      if (!extractedSerial && c.title) {
+        const match = c.title.match(/\[SN:\s*([^\]]+)\]/) || c.title.match(/\(([^)]+)\)$/)
+        if (match) extractedSerial = match[1]
+      }
+
+      return {
+        ...c,
+        serialNumber: extractedSerial || '-',
+        productName: printerModel || c.title,
+      }
+    })
+
+    return NextResponse.json(formatted)
   } catch (error) {
     console.error('[GET /api/client/complaints]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -100,11 +128,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Resolve printerId if a ClientPrinter with this serialNumber exists for this client
+    let printerId: string | null = null
+    if (body.serialNumber) {
+      const clientPrinter = await prisma.clientPrinter.findFirst({
+        where: {
+          clientId: auth.clientId,
+          printer: { serialNumber: { equals: body.serialNumber.trim(), mode: 'insensitive' } },
+        },
+      })
+      if (clientPrinter) {
+        printerId = clientPrinter.id
+      }
+    }
+
     const complaint = await prisma.complaint.create({
       data: {
         complaintNumber: generateNumber('COMP'),
         clientId: auth.clientId,
-        title: `${body.problemType} — ${body.productName}`,
+        title: `${body.problemType} — ${body.productName} [SN: ${body.serialNumber}]`,
         description: body.comments,
         category: category as any,
         priority: 'MEDIUM',
@@ -112,7 +154,7 @@ export async function POST(request: NextRequest) {
         problemType: body.problemType,
         contactPerson: body.contactPerson,
         contactNumber: body.contactNumber,
-        // serialNumber stored in description; printerId resolved if available
+        printerId: printerId ?? null,
       },
     })
 

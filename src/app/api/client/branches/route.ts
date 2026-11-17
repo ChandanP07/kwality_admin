@@ -19,7 +19,15 @@ export async function GET(request: NextRequest) {
       orderBy: { branchName: 'asc' },
     })
 
-    return NextResponse.json(branches)
+    const formatted = branches.map((b) => ({
+      ...b,
+      name: b.branchName,
+      contactName: b.contactPerson,
+      contactPhone: b.phone,
+      contactEmail: b.email,
+    }))
+
+    return NextResponse.json(formatted)
   } catch (error) {
     console.error('[GET /api/client/branches]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
